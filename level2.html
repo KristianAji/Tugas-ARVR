@@ -1,0 +1,40 @@
+<!-- Level 2: Deteksi Phishing - AR Gamifikasi -->
+<!-- Ganti konten <a-marker> di file utama dengan ini -->
+
+<a-marker type="pattern" url="marker.patt">
+  <!-- Ikon umpan/hook phishing -->
+  <a-entity position="0 0.5 0"
+    animation="property:rotation;to:0 360 0;loop:true;dur:4000;easing:linear">
+    <a-sphere radius="0.3" color="#f44336"
+      animation="property:scale;from:1 1 1;to:1.2 1.2 1.2;
+      loop:true;dir:alternate;dur:600"></a-sphere>
+    <a-text value="⚠️" align="center" position="0 0 0.35" width="2"></a-text>
+  </a-entity>
+
+  <a-text value="DETEKSI PHISHING" align="center"
+    position="0 1.3 0" color="#ff5722" width="3"></a-text>
+
+  <!-- Panel email palsu dalam AR -->
+  <a-plane position="0 0 -0.1" width="2" height="1.4" color="#fff">
+    <a-text value="Dari: security@g00gle-verify.com
+Subjek: AKUN ANDA DIBLOKIR!
+
+Klik segera untuk verifikasi:
+http://bit.ly/konfirmasi123
+
+[KLIK LINK]" 
+      align="left" position="-0.85 0.4 0.01" 
+      color="#333" width="3.5" wrap-count="32"></a-text>
+  </a-plane>
+
+  <!-- Indikator bahaya -->
+  <a-entity position="1.2 0 0">
+    <a-text value="🚨 TANDA BAHAYA:
+• Domain typo
+• Link bit.ly
+• Rasa urgensi
+• Alamat aneh" 
+      align="left" color="#d32f2f" width="2.5"
+      position="0 0.3 0"></a-text>
+  </a-entity>
+</a-marker>
