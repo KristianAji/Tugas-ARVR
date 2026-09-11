@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR Literasi Digital & Keamanan Siber</title>
+
+<!-- MindAR + A-Frame -->
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { overflow:hidden; background:#000; font-family:-apple-system,sans-serif; }
+
+  /* ── Splash overlay sebelum kamera aktif ── */
+  #splash {
+    position:fixed; inset:0; z-index:9999;
+    background:linear-gradient(160deg,#042C53,#0a0a1f);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:32px 24px; text-align:center;
+    transition: opacity 0.6s;
+  }
+  #splash.hide { opacity:0; pointer-events:none; }
+
+  .sp-shield { font-size:72px; margin-bottom:16px; animation:float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+  .sp-tag {
+    font-size:10px; font-weight:700; letter-spacing:2px; color:#378ADD;
+    background:rgba(55,138,221,0.15); border:1px solid rgba(55,138,221,0.3);
+    padding:5px 14px; border-radius:20px; margin-bottom:14px;
+    text-transform:uppercase;
+  }
+  .sp-h1 { font-size:26px; font-weight:700; color:#fff; line-height:1.3; margin-bottom:10px; }
+  .sp-h1 span { color:#378ADD; }
+  .sp-sub { font-size:13px; color:rgba(180,210,240,0.75); line-height:1.7; margin-bottom:32px; max-width:300px; }
+
+  .sp-steps {
+    display:flex; flex-direction:column; gap:10px; width:100%; max-width:320px; margin-bottom:32px;
+  }
+  .sp-step {
+    display:flex; align-items:center; gap:12px;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+    border-radius:10px; padding:10px 14px; text-align:left;
+  }
+  .sp-step-num {
+    min-width:26px; height:26px; border-radius:50%;
+    background:#185FA5; color:#fff; font-size:12px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .sp-step-text { font-size:12px; color:rgba(200,220,240,0.9); line-height:1.5; }
+
+  .btn-start {
+    background:#185FA5; color:#fff; border:none; border-radius:12px;
+    padding:15px 36px; font-size:16px; font-weight:700; cursor:pointer;
+    font-family:inherit; width:100%; max-width:320px;
+    transition:all 0.2s;
+  }
+  .btn-start:active { transform:scale(0.97); background:#042C53; }
+
+  .sp-note { font-size:11px; color:rgba(180,210,240,0.5); margin-top:12px; }
+
+  /* ── HUD overlay di atas AR ── */
+  #hud {
+    position:fixed; top:0; left:0; right:0; z-index:1000;
+    display:none;
+    padding:12px 16px;
+    background:rgba(4,44,83,0.85);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(55,138,221,0.3);
+    display:none; align-items:center; justify-content:space-between;
+  }
+  #hud.show { display:flex; }
+  .hud-logo { font-size:13px; font-weight:700; color:#B5D4F4; }
+  .hud-pills { display:flex; gap:8px; align-items:center; }
+  .pill {
+    font-size:11px; font-weight:600; padding:4px 10px; border-radius:20px;
+    border:1px solid;
+  }
+  .pill-xp { background:rgba(55,138,221,0.2); border-color:rgba(55,138,221,0.4); color:#378ADD; }
+  .pill-lvl { background:rgba(29,158,117,0.15); border-color:rgba(29,158,117,0.4); color:#1D9E75; }
+
+  /* ── Scan guide ring ── */
+  #scanGuide {
+    position:fixed; inset:0; z-index:500; pointer-events:none;
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+  }
+  #scanGuide.show { display:flex; }
+  .scan-ring {
+    width:240px; height:240px; border-radius:20px;
+    border:2px solid rgba(55,138,221,0.6);
+    position:relative; animation:pulse-border 2s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%,100%{border-color:rgba(55,138,221,0.4);box-shadow:0 0 0 0 rgba(55,138,221,0.2)}
+    50%{border-color:rgba(55,138,221,0.9);box-shadow:0 0 0 8px rgba(55,138,221,0)}
+  }
+  .scan-corner {
+    position:absolute; width:24px; height:24px; border-color:#378ADD; border-style:solid;
+    border-width:0;
+  }
+  .scan-corner.tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-radius:6px 0 0 0;}
+  .scan-corner.tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-radius:0 6px 0 0;}
+  .scan-corner.bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 6px;}
+  .scan-corner.br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 6px 0;}
+  .scan-line {
+    position:absolute; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,transparent,#378ADD,transparent);
+    animation:scanline 2.5s linear infinite;
+  }
+  @keyframes scanline { 0%{top:5%} 100%{top:95%} }
+  .scan-text { color:rgba(180,210,240,0.8); font-size:13px; margin-top:18px; text-align:center; }
+
+  /* ── Panel konten AR (muncul di bawah layar saat marker terdeteksi) ── */
+  #arPanel {
+    position:fixed; bottom:0; left:0; right:0; z-index:800;
+    background:rgba(4,44,83,0.92);
+    backdrop-filter:blur(16px);
+    border-top:1px solid rgba(55,138,221,0.3);
+    border-radius:20px 20px 0 0;
+    padding:0 0 env(safe-area-inset-bottom,0);
+    display:none;
+    transform:translateY(100%);
+    transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    max-height:55vh; overflow-y:auto;
+  }
+  #arPanel.show { display:block; transform:translateY(0); }
+
+  .panel-drag { width:36px; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin:10px auto 14px; }
+
+  /* ── Misi cards ── */
+  .misi-tabs {
+    display:flex; gap:6px; padding:0 14px 10px; overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .misi-tabs::-webkit-scrollbar { display:none; }
+  .misi-tab {
+    padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600;
+    white-space:nowrap; cursor:pointer; border:1px solid rgba(55,138,221,0.3);
+    background:rgba(255,255,255,0.04); color:rgba(180,210,240,0.7);
+    transition:all 0.15s; font-family:inherit;
+  }
+  .misi-tab.active {
+    background:#185FA5; color:#fff; border-color:#185FA5;
+  }
+
+  .misi-content { padding:0 14px 20px; display:none; }
+  .misi-content.active { display:block; }
+
+  .misi-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:6px; }
+  .misi-desc { font-size:12px; color:rgba(180,210,240,0.75); line-height:1.65; margin-bottom:14px; }
+
+  /* Quiz inline */
+  .q-card {
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+    border-radius:12px; padding:12px; margin-bottom:10px;
+  }
+  .q-text { font-size:13px; color:#e0eeff; line-height:1.6; margin-bottom:10px; }
+  .q-choices { display:flex; flex-direction:column; gap:6px; }
+  .q-btn {
+    padding:10px 12px; border-radius:8px; font-size:12px; font-weight:500;
+    cursor:pointer; border:1px solid rgba(55,138,221,0.25);
+    background:rgba(55,138,221,0.08); color:#B5D4F4;
+    text-align:left; font-family:inherit; transition:all 0.15s;
+  }
+  .q-btn.correct { background:rgba(29,158,117,0.2); border-color:#1D9E75; color:#5DCAA5; }
+  .q-btn.wrong   { background:rgba(216,90,48,0.2);  border-color:#D85A30; color:#F0997B; }
+  .q-btn:disabled { cursor:default; }
+  .q-feedback {
+    font-size:11px; line-height:1.6; padding:8px 10px; border-radius:8px;
+    margin-top:6px; display:none;
+  }
+  .q-feedback.show { display:block; }
+  .q-feedback.ok  { background:rgba(29,158,117,0.15); color:#5DCAA5; }
+  .q-feedback.err { background:rgba(216,90,48,0.15);  color:#F0997B; }
+
+  /* Tips list */
+  .tip-item {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.07);
+    font-size:12px; color:rgba(200,220,240,0.85); line-height:1.55;
+  }
+  .tip-item:last-child { border-bottom:none; }
+  .tip-icon { font-size:16px; min-width:22px; }
+
+  /* Password checker mini */
+  .pw-mini-input {
+    width:100%; padding:10px 12px;
+    background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15);
+    border-radius:8px; color:#e0eeff; font-size:14px; font-family:'Courier New',monospace;
+    outline:none; margin-bottom:8px;
+  }
+  .pw-mini-input:focus { border-color:#378ADD; }
+  .pw-bar-track { height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden; margin-bottom:6px; }
+  .pw-bar-fill  { height:100%; border-radius:3px; transition:all 0.35s; width:0; background:#D85A30; }
+  .pw-bar-label { font-size:11px; color:rgba(180,210,240,0.7); }
+
+  /* Badge row */
+  .badge-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .badge-chip {
+    display:flex; align-items:center; gap:5px;
+    padding:5px 10px; border-radius:20px; font-size:11px; font-weight:600;
+    border:1px solid rgba(239,159,39,0.4); background:rgba(239,159,39,0.1); color:#EF9F27;
+  }
+  .badge-chip.locked { border-color:rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:rgba(180,210,240,0.4); }
+
+  /* XP toast */
+  #xpToast {
+    position:fixed; top:70px; right:14px; z-index:2000;
+    background:rgba(29,158,117,0.95); color:#fff;
+    font-size:13px; font-weight:700; padding:7px 15px; border-radius:20px;
+    transform:translateY(-16px); opacity:0; transition:all 0.3s; pointer-events:none;
+  }
+  #xpToast.show { transform:translateY(0); opacity:1; }
+
+  /* detected badge */
+  #detectedBadge {
+    position:fixed; top:72px; left:50%; transform:translateX(-50%) scale(0.8);
+    z-index:900; opacity:0; transition:all 0.35s;
+    background:rgba(29,158,117,0.92); color:#fff; font-size:12px; font-weight:600;
+    padding:6px 16px; border-radius:20px; white-space:nowrap; pointer-events:none;
+  }
+  #detectedBadge.show { opacity:1; transform:translateX(-50%) scale(1); }
+</style>
+</head>
+<body>
+
+<!-- XP Toast -->
+<div id="xpToast">+0 XP</div>
+<!-- Detected badge -->
+<div id="detectedBadge">📍 Marker Terdeteksi!</div>
+
+<!-- ══════════════════════════
+     SPLASH SCREEN
+══════════════════════════ -->
+<div id="splash">
+  <div class="sp-shield">🛡️</div>
+  <div class="sp-tag">WebAR Experience</div>
+  <h1 class="sp-h1">Literasi Digital &<br><span>Keamanan Siber</span></h1>
+  <p class="sp-sub">Arahkan kamera ke flyer/poster untuk memulai pengalaman AR interaktif!</p>
+
+  <div class="sp-steps">
+    <div class="sp-step">
+      <div class="sp-step-num">1</div>
+      <div class="sp-step-text">Klik tombol di bawah, izinkan akses kamera</div>
+    </div>
+    <div class="sp-step">
+      <div class="sp-step-num">2</div>
+      <div class="sp-step-text">Arahkan kamera ke <strong>flyer / poster</strong> yang sudah dicetak</div>
+    </div>
+    <div class="sp-step">
+      <div class="sp-step-num">3</div>
+      <div class="sp-step-text">Konten AR muncul otomatis — selesaikan semua misi!</div>
+    </div>
+  </div>
+
+  <button class="btn-start" onclick="startAR()">📷 Aktifkan Kamera AR</button>
+  <p class="sp-note">Butuh kamera & browser modern (Chrome/Safari)</p>
+</div>
+
+<!-- ══════════════════════════
+     HUD
+══════════════════════════ -->
+<div id="hud">
+  <div class="hud-logo">🔐 CyberAR</div>
+  <div class="hud-pills">
+    <div class="pill pill-xp" id="xpPill">0 XP</div>
+    <div class="pill pill-lvl" id="lvlPill">🐣 Newbie</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════
+     SCAN GUIDE
+══════════════════════════ -->
+<div id="scanGuide">
+  <div class="scan-ring">
+    <div class="scan-corner tl"></div>
+    <div class="scan-corner tr"></div>
+    <div class="scan-corner bl"></div>
+    <div class="scan-corner br"></div>
+    <div class="scan-line"></div>
+  </div>
+  <div class="scan-text">Arahkan ke flyer / poster<br>untuk memunculkan AR</div>
+</div>
+
+<!-- ══════════════════════════
+     A-FRAME AR SCENE
+══════════════════════════ -->
+<a-scene
+  id="arScene"
+  mindar-image="imageTargetSrc: #targetMind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
+  color-space="sRGB"
+  renderer="colorManagement: true; physicallyCorrectLights: true;"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+  style="display:none;">
+
+  <a-assets>
+    <!-- 
+      CATATAN UNTUK DEVELOPER:
+      Ganti URL di bawah dengan file .mind hasil compile dari:
+      https://hiukim.github.io/mind-ar-js-doc/tools/compile
+      Upload gambar flyer Canva → download .mind → host di server → masukkan URL di sini
+    -->
+    <a-asset-item id="targetMind" src="https://hiukim.github.io/mind-ar-js/examples/image-tracking/assets/card-example/card.mind"></a-asset-item>
+  </a-assets>
+
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <!-- TARGET 0: konten AR muncul di atas marker -->
+  <a-entity mindar-image-target="targetIndex: 0" id="arTarget">
+
+    <!-- ── Shield 3D berputar ── -->
+    <a-entity position="0 0.6 0" animation="property:rotation; to:0 360 0; dur:6000; loop:true; easing:linear">
+      <a-text
+        value="🛡️"
+        align="center"
+        width="2"
+        position="0 0 0"
+        animation="property:scale; from:0 0 0; to:1 1 1; dur:600; easing:easeOutBack">
+      </a-text>
+    </a-entity>
+
+    <!-- ── Judul floating ── -->
+    <a-entity position="0 0.3 0"
+      animation="property:scale; from:0 0 0; to:1 1 1; dur:700; delay:200; easing:easeOutBack">
+      <a-text
+        value="LITERASI DIGITAL"
+        align="center" color="#378ADD"
+        width="2.5" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
+        position="0 0 0.01">
+      </a-text>
+    </a-entity>
+
+    <!-- ── Subtitle ── -->
+    <a-entity position="0 0.15 0"
+      animation="property:scale; from:0 0 0; to:1 1 1; dur:700; delay:400; easing:easeOutBack">
+      <a-text
+        value="& Keamanan Siber"
+        align="center" color="#B5D4F4"
+        width="2" position="0 0 0.01">
+      </a-text>
+    </a-entity>
+
+    <!-- ── Panel latar biru mengambang ── -->
+    <a-plane
+      position="0 -0.1 -0.01"
+      width="2.6" height="0.7"
+      color="#042C53" opacity="0.85"
+      animation="property:scale; from:0 0 0; to:1 1 1; dur:500; delay:100; easing:easeOutBack">
+    </a-plane>
+
+    <!-- ── Ikon ancaman mengambang di sekitar ── -->
+    <a-entity position="-1.1 0.5 0.05"
+      animation="property:position; from:-1.1 0.5 0.05; to:-1.1 0.65 0.05; dur:1800; loop:true; dir:alternate; easing:easeInOutSine">
+      <a-text value="🎣" align="center" width="1" color="#D85A30"></a-text>
+    </a-entity>
+    <a-entity position="1.1 0.5 0.05"
+      animation="property:position; from:1.1 0.5 0.05; to:1.1 0.65 0.05; dur:2200; loop:true; dir:alternate; easing:easeInOutSine">
+      <a-text value="🔑" align="center" width="1" color="#EF9F27"></a-text>
+    </a-entity>
+    <a-entity position="-1.1 -0.3 0.05"
+      animation="property:position; from:-1.1 -0.3 0.05; to:-1.1 -0.15 0.05; dur:2000; loop:true; dir:alternate; easing:easeInOutSine">
+      <a-text value="📱" align="center" width="1" color="#1D9E75"></a-text>
+    </a-entity>
+    <a-entity position="1.1 -0.3 0.05"
+      animation="property:position; from:1.1 -0.3 0.05; to:1.1 -0.15 0.05; dur:1600; loop:true; dir:alternate; easing:easeInOutSine">
+      <a-text value="🌐" align="center" width="1" color="#7F77DD"></a-text>
+    </a-entity>
+
+    <!-- ── Partikel bintang kecil ── -->
+    <a-entity position="-0.8 0.9 0.05"
+      animation="property:scale; from:1 1 1; to:1.5 1.5 1; dur:1000; loop:true; dir:alternate">
+      <a-sphere radius="0.04" color="#378ADD" opacity="0.7"></a-sphere>
+    </a-entity>
+    <a-entity position="0.8 0.9 0.05"
+      animation="property:scale; from:1 1 1; to:1.5 1.5 1; dur:1300; loop:true; dir:alternate">
+      <a-sphere radius="0.04" color="#EF9F27" opacity="0.7"></a-sphere>
+    </a-entity>
+    <a-entity position="0 1.0 0.05"
+      animation="property:scale; from:1 1 1; to:2 2 1; dur:800; loop:true; dir:alternate">
+      <a-sphere radius="0.03" color="#1D9E75" opacity="0.8"></a-sphere>
+    </a-entity>
+
+    <!-- ── Tap prompt ── -->
+    <a-entity position="0 -0.55 0"
+      animation="property:opacity; from:1; to:0.3; dur:1200; loop:true; dir:alternate">
+      <a-text
+        value="👆 Lihat panel di bawah"
+        align="center" color="#B5D4F4"
+        width="1.8" position="0 0 0.01">
+      </a-text>
+    </a-entity>
+
+    <!-- ── XP counter floating ── -->
+    <a-entity position="0.9 -0.7 0.05" id="xpFloat"
+      animation="property:scale; from:0 0 0; to:1 1 1; dur:500; delay:800; easing:easeOutBack">
+      <a-plane width="0.8" height="0.2" color="#185FA5" opacity="0.9" radius="0.05"></a-plane>
+      <a-text id="xpFloatText" value="⭐ 0 XP" align="center" color="#fff" width="1.5" position="0 0 0.01"></a-text>
+    </a-entity>
+
+  </a-entity>
+</a-scene>
+
+<!-- ══════════════════════════
+     AR PANEL (bawah layar)
+══════════════════════════ -->
+<div id="arPanel">
+  <div class="panel-drag"></div>
+
+  <div class="misi-tabs" id="misiTabs">
+    <button class="misi-tab active" onclick="switchMisi(0)">📊 Ancaman</button>
+    <button class="misi-tab" onclick="switchMisi(1)">🎣 Phishing</button>
+    <button class="misi-tab" onclick="switchMisi(2)">🔑 Password</button>
+    <button class="misi-tab" onclick="switchMisi(3)">💡 Tips Aman</button>
+    <button class="misi-tab" onclick="switchMisi(4)">🏆 Badge</button>
+  </div>
+
+  <!-- MISI 0: Ancaman Siber -->
+  <div class="misi-content active" id="misi0">
+    <div class="misi-title">Ancaman Siber di Indonesia</div>
+    <div class="misi-desc">Kenali ancaman nyata yang mengintai pengguna internet setiap hari.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div style="background:rgba(216,90,48,0.12);border:1px solid rgba(216,90,48,0.3);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#D85A30;" id="c1">0</div>
+        <div style="font-size:10px;color:rgba(180,210,240,0.7);">Kasus phishing/tahun</div>
+      </div>
+      <div style="background:rgba(239,159,39,0.12);border:1px solid rgba(239,159,39,0.3);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#EF9F27;" id="c2">0</div>
+        <div style="font-size:10px;color:rgba(180,210,240,0.7);">Kerugian (Rp Triliun)</div>
+      </div>
+      <div style="background:rgba(127,119,221,0.12);border:1px solid rgba(127,119,221,0.3);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#7F77DD;" id="c3">0%</div>
+        <div style="font-size:10px;color:rgba(180,210,240,0.7);">Akun bocor karena pw lemah</div>
+      </div>
+      <div style="background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#1D9E75;" id="c4">0%</div>
+        <div style="font-size:10px;color:rgba(180,210,240,0.7);">Bisa dicegah dengan edukasi</div>
+      </div>
+    </div>
+    <button class="q-btn" style="width:100%;text-align:center;" onclick="addXP(10,'Keren! +10 XP');switchMisi(1)">
+      Mulai Kuis Phishing →
+    </button>
+  </div>
+
+  <!-- MISI 1: Quiz Phishing -->
+  <div class="misi-content" id="misi1">
+    <div class="misi-title">🎣 Kenali Phishing</div>
+    <div class="misi-desc">Pilih mana yang berbahaya:</div>
+
+    <div class="q-card">
+      <div class="q-text">Kamu dapat WA: <em>"Halo, ini Mama. HP mama rusak, ini nomor baru. Transfer Rp 2 juta ya, darurat!"</em> — Apa yang kamu lakukan?</div>
+      <div class="q-choices">
+        <button class="q-btn" onclick="answerQ(this,'wrong','❌ Ini modus Mama Minta Pulsa! Selalu verifikasi ke nomor lama sebelum transfer.')">Transfer langsung</button>
+        <button class="q-btn" onclick="answerQ(this,'correct','✅ Benar! Verifikasi ke nomor asli adalah langkah paling aman.')">Hubungi nomor mama yang lama dulu</button>
+        <button class="q-btn" onclick="answerQ(this,'partial','⚠️ Bisa membantu, tapi penipu bisa mengarang jawaban. Lebih baik hubungi nomor asli.')">Tanya pertanyaan yang cuma mama tahu</button>
+      </div>
+      <div class="q-feedback" id="qf0"></div>
+    </div>
+
+    <div class="q-card">
+      <div class="q-text">Dapat email: <em>"DARURAT! Akun BCA diblokir. Klik http://bca-update.xyz/verifikasi sekarang!"</em></div>
+      <div class="q-choices">
+        <button class="q-btn" onclick="answerQ(this,'wrong','❌ Jangan! Domain .xyz bukan domain resmi BCA (bca.co.id). Ini phishing!')">Klik link dan verifikasi</button>
+        <button class="q-btn" onclick="answerQ(this,'correct','✅ Tepat! Domain mencurigakan + bahasa mendesak = tanda phishing. Hubungi Halo BCA 1500888.')">Abaikan, cek langsung ke app BCA resmi</button>
+      </div>
+      <div class="q-feedback" id="qf1"></div>
+    </div>
+
+    <button class="q-btn" style="width:100%;text-align:center;margin-top:8px;" onclick="addXP(15,'Kuis Phishing Selesai! +15 XP');switchMisi(2)">
+      Lanjut: Cek Password →
+    </button>
+  </div>
+
+  <!-- MISI 2: Password Checker -->
+  <div class="misi-content" id="misi2">
+    <div class="misi-title">🔑 Uji Password Kamu</div>
+    <div class="misi-desc">Ketik password dan lihat seberapa kuat:</div>
+    <input type="password" class="pw-mini-input" id="pwField" placeholder="Ketik password..." oninput="evalPw(this.value)">
+    <div class="pw-bar-track"><div class="pw-bar-fill" id="pwFill"></div></div>
+    <div class="pw-bar-label" id="pwLbl">— Belum ada input</div>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;" id="pwChecks">
+      <div style="font-size:11px;color:rgba(180,210,240,0.5);">☐ Min 12 karakter &nbsp;☐ Huruf besar &nbsp;☐ Angka &nbsp;☐ Simbol</div>
+    </div>
+    <div style="font-size:11px;color:rgba(180,210,240,0.5);margin-top:8px;line-height:1.6;">
+      💡 Contoh kuat: <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;">Kucing@Makan!2024</code>
+    </div>
+    <button class="q-btn" style="width:100%;text-align:center;margin-top:12px;" onclick="addXP(10,'Password Aman! +10 XP');switchMisi(3)">
+      Lanjut: Tips Aman →
+    </button>
+  </div>
+
+  <!-- MISI 3: Tips -->
+  <div class="misi-content" id="misi3">
+    <div class="misi-title">💡 5 Langkah Aman Digital</div>
+    <div class="tip-item"><span class="tip-icon">🔐</span><div>Aktifkan <strong>2FA (Two-Factor Authentication)</strong> di semua akun penting — email, media sosial, banking.</div></div>
+    <div class="tip-item"><span class="tip-icon">🔑</span><div>Gunakan <strong>password berbeda</strong> untuk setiap akun. Manfaatkan aplikasi password manager.</div></div>
+    <div class="tip-item"><span class="tip-icon">🎣</span><div>Selalu <strong>cek domain URL</strong> sebelum klik link. Phishing sering pakai domain mirip tapi beda.</div></div>
+    <div class="tip-item"><span class="tip-icon">📶</span><div>Hindari <strong>WiFi publik</strong> untuk transaksi sensitif. Gunakan data pribadi atau VPN.</div></div>
+    <div class="tip-item"><span class="tip-icon">🔄</span><div><strong>Update rutin</strong> sistem operasi & aplikasi. Pembaruan sering berisi patch keamanan penting.</div></div>
+    <button class="q-btn" style="width:100%;text-align:center;margin-top:10px;" onclick="addXP(10,'Tips Dipelajari! +10 XP');switchMisi(4)">
+      Lihat Badge Kamu 🏆
+    </button>
+  </div>
+
+  <!-- MISI 4: Badge -->
+  <div class="misi-content" id="misi4">
+    <div class="misi-title">🏆 Pencapaianmu</div>
+    <div style="font-size:24px;font-weight:700;color:#378ADD;margin-bottom:4px;" id="finalXP">0 XP</div>
+    <div style="font-size:12px;color:rgba(180,210,240,0.7);margin-bottom:14px;" id="finalLvl">Level: 🐣 Newbie</div>
+    <div class="badge-row" id="badgeRow">
+      <div class="badge-chip locked">🎣 Phishing Slayer</div>
+      <div class="badge-chip locked">🔑 Password Master</div>
+      <div class="badge-chip locked">💡 Tips Learner</div>
+      <div class="badge-chip locked">🚀 Cyber Hero</div>
+    </div>
+    <div style="margin-top:16px;">
+      <button class="q-btn" style="width:100%;text-align:center;background:rgba(29,158,117,0.15);border-color:#1D9E75;color:#5DCAA5;" onclick="shareResult()">
+        📤 Bagikan ke Telegram
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════
+// STATE
+// ══════════════════════════════════
+var G = { xp:0, badges:[], arStarted:false, markerFound:false };
+var LEVELS = [
+  {min:0,  lbl:'🐣 Newbie'},
+  {min:30, lbl:'🛡️ Guardian'},
+  {min:70, lbl:'🔐 Sentinel'},
+  {min:120,lbl:'🚀 Cyber Hero'}
+];
+function getLevel(){
+  var l=LEVELS[0];
+  LEVELS.forEach(function(lv){if(G.xp>=lv.min)l=lv;});
+  return l;
+}
+
+function addXP(n, msg){
+  G.xp += n;
+  updateHUD();
+  var t = document.getElementById('xpToast');
+  t.textContent = msg || ('+'+n+' XP');
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  // update floating xp text in AR
+  var ft = document.getElementById('xpFloatText');
+  if(ft) ft.setAttribute('value','⭐ '+G.xp+' XP');
+}
+
+function updateHUD(){
+  var lv = getLevel();
+  document.getElementById('xpPill').textContent = G.xp+' XP';
+  document.getElementById('lvlPill').textContent = lv.lbl;
+  var fx = document.getElementById('finalXP');
+  var fl = document.getElementById('finalLvl');
+  if(fx) fx.textContent = G.xp+' XP';
+  if(fl) fl.textContent = 'Level: '+lv.lbl;
+}
+
+// ══════════════════════════════════
+// START AR
+// ══════════════════════════════════
+function startAR(){
+  var scene = document.getElementById('arScene');
+  scene.style.display = 'block';
+
+  var splash = document.getElementById('splash');
+  splash.classList.add('hide');
+  setTimeout(function(){ splash.style.display='none'; }, 700);
+
+  document.getElementById('hud').classList.add('show');
+  document.getElementById('scanGuide').classList.add('show');
+
+  // Wait for MindAR to init then start
+  scene.addEventListener('loaded', function(){
+    var sys = scene.systems['mindar-image-system'];
+    if(sys) sys.start();
+  });
+
+  // Marker found
+  var target = document.getElementById('arTarget');
+  if(target){
+    target.addEventListener('targetFound', function(){
+      G.markerFound = true;
+      document.getElementById('scanGuide').classList.remove('show');
+      document.getElementById('arPanel').classList.add('show');
+
+      var badge = document.getElementById('detectedBadge');
+      badge.classList.add('show');
+      setTimeout(function(){ badge.classList.remove('show'); }, 2500);
+
+      if(!G.badges.includes('scan')){
+        G.badges.push('scan');
+        addXP(5, '📍 Marker ditemukan! +5 XP');
+        animateCounters();
+      }
+      updateBadgePanel();
+    });
+
+    target.addEventListener('targetLost', function(){
+      G.markerFound = false;
+      document.getElementById('scanGuide').classList.add('show');
+      document.getElementById('arPanel').classList.remove('show');
+    });
+  }
+
+  G.arStarted = true;
+}
+
+// ══════════════════════════════════
+// MISI TABS
+// ══════════════════════════════════
+function switchMisi(idx){
+  document.querySelectorAll('.misi-tab').forEach(function(t,i){ t.classList.toggle('active', i===idx); });
+  document.querySelectorAll('.misi-content').forEach(function(c,i){ c.classList.toggle('active', i===idx); });
+}
+
+// ══════════════════════════════════
+// COUNTER ANIMATION
+// ══════════════════════════════════
+function animateCounters(){
+  var targets = [{id:'c1',val:847293,suf:''},{id:'c2',val:12.4,suf:'T'},{id:'c3',val:81,suf:'%'},{id:'c4',val:95,suf:'%'}];
+  targets.forEach(function(t){
+    var el=document.getElementById(t.id); if(!el) return;
+    var start=null, dur=1600;
+    function step(ts){
+      if(!start)start=ts;
+      var p=Math.min((ts-start)/dur,1);
+      var e=1-Math.pow(1-p,3);
+      var v=t.val<100 ? (Math.round(e*t.val*10)/10) : Math.round(e*t.val);
+      el.textContent=(v>=1000?v.toLocaleString():v)+t.suf;
+      if(p<1)requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// ══════════════════════════════════
+// QUIZ
+// ══════════════════════════════════
+var qAnswered = [false, false];
+function answerQ(btn, type, msg){
+  var card = btn.closest('.q-card');
+  var idx = Array.from(document.querySelectorAll('.q-card')).indexOf(card);
+  if(qAnswered[idx]) return;
+  qAnswered[idx] = true;
+  card.querySelectorAll('.q-btn').forEach(function(b){ b.disabled=true; });
+  btn.classList.add(type==='correct'?'correct':'wrong');
+  var fb = card.querySelector('.q-feedback');
+  fb.className = 'q-feedback show '+(type==='correct'?'ok':'err');
+  fb.textContent = msg;
+  if(type==='correct'){
+    if(!G.badges.includes('quiz'+idx)){
+      G.badges.push('quiz'+idx);
+      addXP(8,'Jawaban Benar! +8 XP');
+    }
+    updateBadgePanel();
+  }
+}
+
+// ══════════════════════════════════
+// PASSWORD
+// ══════════════════════════════════
+var COMMON = ['password','123456','qwerty','abc123','iloveyou','admin'];
+function evalPw(pw){
+  var score=0;
+  var len=pw.length>=12, upper=/[A-Z]/.test(pw), lower=/[a-z]/.test(pw),
+      num=/[0-9]/.test(pw), sym=/[^A-Za-z0-9]/.test(pw),
+      notDict=!COMMON.some(function(w){return pw.toLowerCase().includes(w);});
+  if(len)score+=20; if(upper)score+=15; if(lower)score+=10;
+  if(num)score+=20; if(sym)score+=25; if(notDict)score+=10;
+  score=Math.min(score,100);
+  var fill=document.getElementById('pwFill');
+  var lbl=document.getElementById('pwLbl');
+  var checks=document.getElementById('pwChecks');
+  fill.style.width=score+'%';
+  var col,str;
+  if(!pw.length){col='';str='— Belum ada input';}
+  else if(score<30){col='#D85A30';str='Sangat Lemah 🔴';}
+  else if(score<60){col='#EF9F27';str='Lemah 🟡';}
+  else if(score<80){col='#FAC775';str='Sedang 🟠';}
+  else if(score<95){col='#1D9E75';str='Kuat 🟢';}
+  else{col='#5DCAA5';str='Sangat Kuat 💪';}
+  fill.style.background=col||'transparent';
+  lbl.textContent=str; lbl.style.color=col||'rgba(180,210,240,0.7)';
+  checks.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:5px;">' +
+    mkChk(len,'12+ karakter')+mkChk(upper,'Huruf besar')+mkChk(num,'Angka')+mkChk(sym,'Simbol') +
+  '</div>';
+  if(score>=80 && !G.badges.includes('pw')){
+    G.badges.push('pw');
+    addXP(12,'Password Kuat! +12 XP');
+    updateBadgePanel();
+  }
+}
+function mkChk(ok,label){
+  return '<span style="font-size:10px;padding:3px 8px;border-radius:10px;'+(ok?'background:rgba(29,158,117,0.2);color:#5DCAA5;':'background:rgba(255,255,255,0.05);color:rgba(180,210,240,0.4);')+'">'+( ok?'✓ ':'☐ ')+label+'</span>';
+}
+
+// ══════════════════════════════════
+// BADGE PANEL
+// ══════════════════════════════════
+function updateBadgePanel(){
+  var row=document.getElementById('badgeRow'); if(!row) return;
+  var all=[
+    {id:'scan', icon:'📍', label:'AR Explorer'},
+    {id:'quiz0',icon:'🎣', label:'Phishing Slayer'},
+    {id:'quiz1',icon:'🏦', label:'Bank Guard'},
+    {id:'pw',   icon:'🔑', label:'Password Master'},
+    {id:'tips', icon:'💡', label:'Tips Learner'},
+    {id:'share',icon:'📤', label:'Cyber Sharer'}
+  ];
+  row.innerHTML = all.map(function(b){
+    var earned=G.badges.includes(b.id);
+    return '<div class="badge-chip'+(earned?'':' locked')+'">'+b.icon+' '+b.label+'</div>';
+  }).join('');
+  updateHUD();
+}
+
+// ══════════════════════════════════
+// SHARE
+// ══════════════════════════════════
+function shareResult(){
+  G.badges.push('share');
+  updateBadgePanel();
+  var lv=getLevel();
+  var txt='🛡️ Saya baru selesai AR Literasi Digital & Keamanan Siber!\n\n'+
+    '⭐ XP: '+G.xp+'\n🏅 Level: '+lv.lbl+'\n🎖️ Badge: '+G.badges.length+'/6\n\n'+
+    '🚀 Scan flyer & coba juga!\n#LiterasiDigital #KeamananSiber #CyberAR';
+  if(navigator.share){
+    navigator.share({title:'AR CyberSec',text:txt});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(function(){
+      alert('✅ Hasil disalin! Tempel ke grup Telegram.');
+    });
+  } else { alert(txt); }
+}
+
+// ── Init ──
+updateHUD();
+</script>
+</body>
+</html>
